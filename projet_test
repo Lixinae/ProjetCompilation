@@ -1,0 +1,13 @@
+main(){
+
+	int x,y;
+	x=4;
+	print (x);
+	while(x<10){
+		x=x+1;
+		print (x);
+	}
+	return;
+}
+
+
