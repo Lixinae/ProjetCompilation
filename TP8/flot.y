@@ -19,15 +19,12 @@
  FILE* yyin; 
  int yylval; 
  int jump_label=0;
- 
- int fin=0;
- int x;
- 
- int nbElemTable=0;
+
 %}
 
 %token IF ELSE PRINT NOMBRE_ENTIER IDENT
 %token WHILE
+%token TRUE FALSE
 
 %left NOTELSE
 %left ELSE
@@ -39,16 +36,9 @@
 
 
 %%
-PROGRAMME : /*rien*/  | PROGRAMME INSTRUCTION
+PROGRAMME :/* vide */ | INSTRUCTION PROGRAMME 
 
        ;
-/*  ALLOC
-
-
- Pour enlever la recursion a gauche et donc les conflits /
-PROGX: /* rien / | INSTRUCTION PROGX 
-	;       
-       */
 INSTRUCTION :
 	  PRINT E ';' {
 	  	inst("POP"); 
@@ -90,14 +80,14 @@ INSTRUCTION :
 
       
 
-INSTRUCTIONETOILE  : /* rien*/ | INSTRUCTIONETOILE INSTRUCTION       
+INSTRUCTIONETOILE  : /* rien*/ | INSTRUCTION INSTRUCTIONETOILE     
       ;
       /*
       test -> | IF {instarg("LABEL",$$=jump_label++);} '(' IFBOOL ')' {inst("POP");instarg("JUMPF",$$=jump_label++);}
       
       IF '(' Ifbool{inst("POP");instarg("JUMPF",jump_label+1);instarg("LABEL",$3);jump_label++;}')' InstrIF
       */
-INSTRUCTIONIF : | INSTRUCTION %prec NOTELSE {instarg("LABEL",jump_label++);}
+INSTRUCTIONIF : INSTRUCTION %prec NOTELSE {instarg("LABEL",jump_label++);}
 				| INSTRUCTION ELSE JUMPELSE {instarg("LABEL",$3-1);} INSTRUCTION {instarg("LABEL",$3);}
 				; 
 				
@@ -114,8 +104,8 @@ IFBOOLONE:
     |  E '>''=' E JUMPIFGEQ {$$=$5;}
     |  E '=''=' E JUMPIFEQUAL {$$=$5;}
     |  E '!''=' E JUMPIFNOTEQUAL {$$=$5;}
-	| "true" {instarg("SET",1); inst("PUSH");}
-	| "false" {instarg("SET",0); inst("PUSH");}
+	| TRUE {instarg("SET",1); inst("PUSH");$$=jump_label;}
+	| FALSE {instarg("SET",0); inst("PUSH");$$=jump_label;}
 	;
 
 

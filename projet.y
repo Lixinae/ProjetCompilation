@@ -6,50 +6,44 @@
 #define MAX_SIZE 256
 
 /* A modifier */
+typedef enum{
+	false=0,
+	true
+}Bool;
+
 typedef enum {
-	BOOLEEN=0,
-	ENTIER
+	caract=0,
+	integ
 }Type;
 
-/* Rajout du type boolean
-	-> clarifie le code
- */
-typedef enum {
-	FALSE=0,
-	TRUE
-}boolean;
-
 typedef struct {
-	Type type;
+	Type type;/* 0 : caract
+				 1 : integ 
+			  	*/
 	char* name;
-	int taille;
-	int valeur; /*  */
+	int size;
+	int value;
 
 }Table_symbol;
 
-int yyerror(char*);
-int yylex();
+ int yyerror(char*);
+ int yylex();
  FILE* yyin; 
  int yylval; 
  int jump_label=0;
- 
- int *labels;
- int x; 
  void inst(const char *);
  void instarg(const char *,int);
  void comment(const char *);
  
- /* Verifie si le symbole donner est dans la table */
- boolean find(char *symbol);
+ /* Verifie si le symbole donné est dans la table */
+ Bool find(char *symbol);
  /* insert le symbole "symbol" de type "type" dans la table*/
- void insert_symbol(char* symbol,Type type);
- 
+ void insert_symbol(char* symbol,Type type); 
   /* Modifier les 2 fonctions
 	-> utiliser table des symbole
  */
  void stockage(void);
- void restoration(void);
- 
+ void restoration(void); 
  void ifand();
  void ifor();
  
@@ -58,16 +52,16 @@ int yylex();
  
 %}
 
-%token IF ELSE PRINT NUM ALLOC
+%token IF ELSE PRINT NUM 
 %token IDENT
 %token WHILE
 %token MAIN
-%token TYPE
 %token VOID
-%token READ READCH
 %token RETURN
 %token CARACTERE
 %token CONST
+%token INT CHAR
+%token TRUE FALSE
 
 %left NOTELSE
 %left ELSE
@@ -80,20 +74,20 @@ int yylex();
 
 %%
 
-PROGRAMME : 
+Progamme : 
 	DeclConst DeclVarPuisFonct DeclMain
     ;
 
 /* Declaration de la liste des constante */	
-DeclConst: /* Rien */
-	| DeclConst CONST ListConst ';'	   
+DeclConst: 
+	/* vide */
+	| CONST ListConst ';' DeclConst	   
 	;
   
 ListConst : 
-	| ListConst ',' IDENT '=' Litteral
-	| IDENT '=' Litteral 
+	IDENT '=' Litteral ',' ListConst
+	| IDENT '=' Litteral
 	;
-	
 Litteral :
 	NombreSigne
 	| CARACTERE
@@ -106,20 +100,23 @@ NombreSigne:
 	;
 
 DeclVarPuisFonct :
-	| TYPE ListVar ';' DeclVarPuisFonct
+	/* vide */
+	| INT ListVar ';' DeclVarPuisFonct
+	| CHAR ListVar ';' DeclVarPuisFonct
 	| DeclFonct
 	;
+
 	
 ListVar : 
-	ListVar ',' Ident
+	Ident ',' ListVar
 	| Ident
 	;
 Ident : 
 	IDENT Tab
 	;
 Tab : 
-	/* Rien */
-	| Tab '[' NUM ']'	
+	/* vide */
+	| '[' NUM ']' Tab 	
 	;
 DeclMain :
 	EnTeteMain Corps
@@ -128,15 +125,15 @@ EnTeteMain:
 	MAIN '(' ')'
 	;
 DeclFonct : 
-	DeclFonct DeclUneFonct
+	DeclUneFonct DeclFonct
 	| DeclUneFonct
 	;
 DeclUneFonct:
 	EnTeteFonct Corps
 	;
-
 EnTeteFonct : 
-	TYPE IDENT '(' Parametres ')'
+	INT IDENT '(' Parametres ')'
+	| CHAR IDENT '(' Parametres ')'
 	| VOID IDENT '(' Parametres ')'
 	;
 Parametres : 
@@ -144,10 +141,11 @@ Parametres :
 	| ListTypVar
 	;
 ListTypVar :
-	ListTypVar ',' TYPE IDENT
-	| TYPE IDENT	
+	INT IDENT ',' ListTypVar
+	| CHAR IDENT ',' ListTypVar  
+	| INT IDENT
+	| CHAR IDENT	
 	;
-	/* int x*/
 Corps : 
 	'{' DeclConst DeclVar SuiteInstr '}'
 	;
@@ -159,29 +157,24 @@ Corps :
 	Pas affectation a la declaration
  */	
 DeclVar : 
-	/*rien*/
-	| DeclVar TYPE ListVar ';' { insert_symbol((char*)$3,$2);} /* Erreur pour le moment */
+	/*vide*/
+	| DeclVar INT ListVar ';' /*{ insert_symbol((char*)$3,$2);}  Erreur pour le moment */
+	| DeclVar CHAR ListVar ';'  
 	;
 
 SuiteInstr :
-	/* rien*/
-	| SuiteInstr Instr       
+	/*vide*/
+	| Instr SuiteInstr       
     ;
-	  
-InstrComp : 
-	'{' SuiteInstr '}'
-	;
 	
 Instr :
-	LValue '=' E ';'{ printf("#---------truc\n");
-	 
-	}
-	| IF '(' Ifbool{inst("POP");instarg("JUMPF",$$=jump_label++);instarg("LABEL",$3);}')' InstrIF
+	LValue '=' Exp ';'
+	| IF '(' Ifbool ')' InstrIF
 		
-	| WHILE { instarg("LABEL",$$=jump_label++);} '(' Ifbool')' {inst("POP");instarg("JUMPF",$$=jump_label++);}      	
+	| WHILE  { instarg("LABEL",$$=jump_label++);} '(' Ifbool ')' {inst("POP");instarg("JUMPF",$$=jump_label++);}      	
 		Instr	{instarg("JUMP",$2); instarg("LABEL",$6);}
 	
-	| RETURN E ';' { 
+	| RETURN Exp ';' { 
 	
 	}
 	| RETURN ';' { 
@@ -190,102 +183,92 @@ Instr :
 	| IDENT '(' Arguments ')' ';' { 
 	
 	}
-	| READ  '(' IDENT ')' ';'  { 
-		inst("READ");
-		inst("PUSH");	
+		/* READ */
+	| INT {inst("READ");inst("PUSH");} '(' IDENT ')' ';'  { 
+	
 	} 
-	| READCH  '(' IDENT ')' ';' {
-		 inst("READCH");
-		 inst("PUSH");
-	} 
-	| PRINT '(' E ')' ';' { 
-		inst("POP"); 
-      	inst("WRITE");
+		/* READCH */
+	| CHAR {inst("READCH");inst("PUSH");}  '(' IDENT ')' ';' {
+
 	}
+	| PRINT '(' Exp {inst("POP");inst("WRITE");comment("---affichage");}')' ';' 
 	| ';'
-	| InstrComp	
+	| '{' SuiteInstr '}'
 	;	
 	
 Arguments: 
-	/* rien */ 
+	/* vide */ 
 	| ListExp
 	;
 
 LValue :
-	/* rien */ 
-	| IDENT TabExp	
+	IDENT TabExp	
 	;
 TabExp:
-	/* */
-	| TabExp '[' E ']'
+	/* vide */
+	| TabExp '[' Exp ']' 
 
 	;
 
 ListExp : 
-	ListExp ',' E
-	| E  
+	ListExp ',' Exp 
+	| Exp  
 	;	
 
 /* A completer */	 
-E : 
+Exp : 
 	/* Exp ADDSUB Exp */
-	E '+' E {
+	Exp '+' Exp {
 		inst("POP");
 		inst("SWAP"); 
 		inst("POP");
 		inst("ADD");
 		inst("PUSH");
 	}
-	| E '-' E {
+	| Exp '-' Exp {
 		inst("POP");
 		inst("SWAP"); 
 		inst("POP");
 		inst("SUB");
 		inst("PUSH");
 	}
+	
 	/* Exp DIVSTAR Exp */
-	| E '*' E {
+	| Exp '*' Exp {
 		inst("POP");
 		inst("SWAP"); 
 		inst("POP");
 		inst("MUL");
 		inst("PUSH");
 	}	
-	| E '/' E {
+	| Exp '/' Exp {
 		inst("POP");
 		inst("SWAP"); 
 		inst("POP");
 		inst("DIV");
 		inst("PUSH");
 	}
-	| E '%' E {
+	| '(' Exp '%' Exp ')' {
 		inst("POP");
 		inst("SWAP"); 
 		inst("POP");
 		inst("MOD");
 		inst("PUSH");
 	}
-	| E '<' E JUMPIFLESS { $$=$4;}
-    | E '>' E JUMPIFGREATER { $$=$4;}
-    | E '<''=' E JUMPIFLEQ {$$=$5;}    
-    | E '>''=' E JUMPIFGEQ {$$=$5;}
-    | E '=''=' E JUMPIFEQUAL {$$=$5;}
-    | E '!''=' E JUMPIFNOTEQUAL {$$=$5;}
     
-	| '+' E { 
+    /* ADDSUB Exp */
+	| '(' '-' Exp ')' {
 		inst("POP");
-		inst("ADD");
+		inst("NEG");
 		inst("PUSH"); 
 	}
-	| '-' E {
-		inst("POP");
-		inst("SUB");
-		inst("PUSH"); 
-	}
-	| E '|''|' E { }
-	| E '&''&' E { }	
-	| '!' E { }
-	| '(' E ')' { }
+	/*Exp BOPE Exp 
+	*/
+	
+	/* NEGATION Exp */	
+	
+	/* */
+	| '(' Exp ')' { }
 	| LValue { }
 	| NUM { 
 		instarg("SET",$1);
@@ -293,36 +276,14 @@ E :
     }
 	| CARACTERE { }
 	| IDENT '(' Arguments ')' { }
-	/*| IDENT { restoration();}*/
   ;
-/*
-Instr :
-	  PRINT E ';' {
-	  	inst("POP"); 
-      	inst("WRITE");
-	  	comment("---affichage");
-	  }
 
-	  | IDENT '=' E ';' {   stockage();    } 
-	  
-	  | IF '(' Ifbool{inst("POP");instarg("JUMPF",jump_label+1);instarg("LABEL",$3);jump_label++;}')' InstrIF
-	  
-      | WHILE { instarg("LABEL",jump_label++);fin++; my_realloc(&labels,fin); labels[fin-1]=jump_label-1;} InstrWhile
-      
-      | InstrComp
-      
-      ;
-
-InstrWhile:
-		'(' Ifbool ')' {inst("POP"); instarg("JUMPF",jump_label+1); instarg("LABEL",$2); jump_label++; jump_label++;} 
-		Instr {instarg("JUMP",labels[fin-1]); instarg("LABEL",$2+1); fin--; my_realloc(&labels,fin);} 
-		;
-      */
 
 InstrIF :
-	 | Instr %prec NOTELSE {instarg("LABEL",jump_label++);}
+	 Instr %prec NOTELSE {instarg("LABEL",jump_label++);}
      | Instr ELSE JUMPELSE {instarg("LABEL",$3-1);} Instr {instarg("LABEL",$3);}
-	 ; 
+	 ;
+	 
 Ifbool:
 	 IfboolONE  '|' '|' Ifbool {ifor();$$=$4;}
 	 | IfboolONE '&' '&' Ifbool {ifand();$$=$4;}	 
@@ -330,14 +291,25 @@ Ifbool:
 	;
 
 IfboolONE: 
-    |  E '<' E JUMPIFLESS { $$=$4;}
-    |  E '>' E JUMPIFGREATER { $$=$4;}
-    |  E '<''=' E JUMPIFLEQ {$$=$5;}    
-    |  E '>''=' E JUMPIFGEQ {$$=$5;}
-    |  E '=''=' E JUMPIFEQUAL {$$=$5;}
-    |  E '!''=' E JUMPIFNOTEQUAL {$$=$5;}
-	| "true" {instarg("SET",1); inst("PUSH");}
-	| "false" {instarg("SET",0); inst("PUSH");}
+    Exp '<' Exp JUMPIFLESS { $$=$4;}
+    |  Exp '>' Exp JUMPIFGREATER { $$=$4;}
+    |  Exp '<''=' Exp JUMPIFLEQ {$$=$5;}    
+    |  Exp '>''=' Exp JUMPIFGEQ {$$=$5;}
+    |  Exp '=''=' Exp JUMPIFEQUAL {$$=$5;}
+    |  Exp '!''=' Exp JUMPIFNOTEQUAL {$$=$5;}
+    | '!' Exp JUMPIFNOT {$$=$3;}
+	| TRUE {instarg("SET",1); inst("PUSH");}
+	| FALSE {instarg("SET",0); inst("PUSH");}
+	;
+
+JUMPIFNOT:{
+		inst("POP");
+		inst("NEG");
+		inst("SWAP");
+		instarg("SET",1);
+		inst("ADD");
+		inst("PUSH");
+		}
 	;
 
 JUMPIFEQUAL:{
@@ -400,7 +372,7 @@ JUMPELSE : {
 	}	 
 	;
 
-  
+
 
 
 %%
@@ -442,13 +414,13 @@ void ifand(){
 
 }
 
-boolean find(char *symbol){
+Bool find(char *symbol){
 	int i;
 	for(i=0;i<MAX_SIZE;i++){
 		if(strcmp(table[i].name,symbol))
-			return TRUE;
+			return true;
 	}
-	return FALSE;
+	return false;
 }
 
 

@@ -8,6 +8,8 @@
 "else" {return ELSE;}
 "print" {return PRINT;}
 "while" {return WHILE;}
+"true" {return TRUE;}
+"false" {return FALSE;}
 [A-Za-z]+ {return IDENT;}
 . return yytext[0];
 %%

@@ -7,13 +7,16 @@
 "if" {return IF;}
 "else" {return ELSE;}
 "print" {return PRINT;}
-[A-Za-z] {return IDENT;}
 "while" {return WHILE;}
-"int" {return TYPE;}
+"int" {return INT;}
+"char" {return CHAR;}
 "return" {return RETURN;}
 "void" {return VOID;}
 "main" {return MAIN;}
 "const" {return CONST;}
-
+"true" {return TRUE;}
+"false" {return FALSE;}
+"'"[a-zA-Z]+"'" {return CARACTERE;}
+[A-Za-z]+ {return IDENT;}
 . return yytext[0];
 %%

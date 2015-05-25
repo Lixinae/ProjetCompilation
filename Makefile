@@ -9,7 +9,7 @@ $(EXEC): $(EXEC).o lex.yy.o
 	gcc  -o $@ $^ $(LDFLAGS)
 
 $(EXEC).c: $(EXEC).y
-	bison -d -o $(EXEC).c $(EXEC).y
+	bison -d -v -o $(EXEC).c $(EXEC).y
 
 $(EXEC).h: $(EXEC).c
 
