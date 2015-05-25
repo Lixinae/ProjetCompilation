@@ -23,14 +23,11 @@
  int fin=0;
  int x;
  
- Table_symbol table[MAX_SIZE];
  int nbElemTable=0;
 %}
 
-%token IF ELSE PRINT NOMBRE_ENTIER ALLOC
-%token IDENT
+%token IF ELSE PRINT NOMBRE_ENTIER IDENT
 %token WHILE
-
 
 %left NOTELSE
 %left ELSE
@@ -42,8 +39,16 @@
 
 
 %%
-PROGRAMME : /* rien */ | PROGRAMME INSTRUCTION 
+PROGRAMME : /*rien*/  | PROGRAMME INSTRUCTION
+
        ;
+/*  ALLOC
+
+
+ Pour enlever la recursion a gauche et donc les conflits /
+PROGX: /* rien / | INSTRUCTION PROGX 
+	;       
+       */
 INSTRUCTION :
 	  PRINT E ';' {
 	  	inst("POP"); 
@@ -51,11 +56,17 @@ INSTRUCTION :
 	  	comment("---affichage");
 	  }
 
-	  | IDENT '=' E ';' {   stockage();    } 
-	  
+	  | IDENT '=' E ';' {   stockage();    } 	  
 	  
 	  | IF '(' IFBOOL{inst("POP");instarg("JUMPF",$$=jump_label++);instarg("LABEL",$3);}')' INSTRUCTIONIF
 	  
+	  | WHILE  { instarg("LABEL",$$=jump_label++);} '(' IFBOOL ')' {inst("POP");instarg("JUMPF",$$=jump_label++);}      	
+		INSTRUCTION	{instarg("JUMP",$2); instarg("LABEL",$6);}
+		
+	  | '{' INSTRUCTIONETOILE '}'
+      
+      ;	
+		
 	  /*| IF '(' IFBOOL{inst("POP");instarg("JUMPF",$$=jump_label++);instarg("LABEL",$3);}')'
 	   INSTRUCTION %prec NOTELSE {instarg("LABEL",jump_label++);}
 	  
@@ -68,8 +79,7 @@ INSTRUCTION :
 	  | IF '(' IFBOOL ')' {inst("POP");instarg("JUMPF",$$=jump_label);} INSTRUCTION ELSE JUMPELSE 
 	  /* instarg("JUMP", $$=jump_label++); {instarg("LABEL",$8);} INSTRUCTION {instarg("LABEL",$9);}
 */
-      | WHILE { instarg("LABEL",$$=jump_label++);} '(' IFBOOL ')' {inst("POP");instarg("JUMPF",$$=jump_label++);}      	
-		INSTRUCTION	{instarg("JUMP",$2); instarg("LABEL",$6);}
+      
 	  /* { instarg("LABEL",$$=jump_label++);}  compte comme une instruction
 	  		WHILE = $1 
 	  		{ instarg("LABEL",$$=jump_label++);} = $2 
@@ -78,9 +88,7 @@ INSTRUCTION :
 	  		')' = $5
 	  */  
 
-      | '{' INSTRUCTIONETOILE '}'
       
-      ;
 
 INSTRUCTIONETOILE  : /* rien*/ | INSTRUCTIONETOILE INSTRUCTION       
       ;
@@ -176,13 +184,16 @@ JUMPELSE : {
 	
 
 	 
-E : E '+' E {
+	
+E:	 E '+' E {
 		inst("POP");
 		inst("SWAP"); 
 		inst("POP");
 		inst("ADD");
 		inst("PUSH");
 	}
+	
+	
 	| E '-' E {
 		inst("POP");
 		inst("SWAP"); 

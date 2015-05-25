@@ -7,7 +7,7 @@
 "if" {return IF;}
 "else" {return ELSE;}
 "print" {return PRINT;}
-[A-Za-z]+ {return IDENT;}
 "while" {return WHILE;}
+[A-Za-z]+ {return IDENT;}
 . return yytext[0];
 %%
