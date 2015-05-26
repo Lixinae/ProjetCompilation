@@ -1,12 +1,27 @@
+const y=10;
+
+int a,b,c;
+char d;
+
+int bouteille(void){
+	
+	print (1024);
+}
+
 main(){
 
-	int x,y;
-	x=4;
+	const stylo=5;
+	int moncul,mouchoir;
+	char manette;
+
 	print (x);
-	while(x<10){
-		x=x+1;
-		print (x);
+	
+	if(4<10){
+		print (42);
 	}
+	
+	bouteille();
+	
 	return;
 }
 

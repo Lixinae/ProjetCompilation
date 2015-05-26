@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#define MAX_SIZE 256
+#define MAX_SIZE 1024
 
 /* A modifier */
 typedef enum{
@@ -12,8 +12,8 @@ typedef enum{
 }Bool;
 
 typedef enum {
-	caract=0,
-	integ
+	caracter=0,
+	integer
 }Type;
 
 typedef struct {
@@ -21,10 +21,12 @@ typedef struct {
 				 1 : integ 
 			  	*/
 	char* name;
-	int size;
+	/*int size; inutile */ 
 	int value;
+	
+	/* Rajouter une variable pour indiquer qu'un symbol est "mort" et donc reutilisable */
 
-}Table_symbol;
+}Symbol;
 
  int yyerror(char*);
  int yylex();
@@ -36,9 +38,12 @@ typedef struct {
  void comment(const char *);
  
  /* Verifie si le symbole donné est dans la table */
- Bool find(char *symbol);
+ int find(char *symbol,Type type);
  /* insert le symbole "symbol" de type "type" dans la table*/
  void insert_symbol(char* symbol,Type type); 
+ /* Met a jour le symbol dans le table*/
+ void update_symbol(char* symbol,Type type,int value);
+ 
   /* Modifier les 2 fonctions
 	-> utiliser table des symbole
  */
@@ -47,21 +52,12 @@ typedef struct {
  void ifand();
  void ifor();
  
- Table_symbol table[MAX_SIZE];
- int nbElemTable=0;
+ Symbol* table; /*MAX_SIZE]; Table des symbol */
+ int nbElemTable=0; /* Nombre de variable dans la table */
+ int nbElemFonc=0; /* Nombre de variable dans la fonctions */
  
 %}
 
-%token IF ELSE PRINT NUM 
-%token IDENT
-%token WHILE
-%token MAIN
-%token VOID
-%token RETURN
-%token CARACTERE
-%token CONST
-%token INT CHAR
-%token TRUE FALSE
 
 %left NOTELSE
 %left ELSE
@@ -70,8 +66,38 @@ typedef struct {
 %left '-'
 %left '*'
 %left '/'
+%left '%'
+%left '('
+%left ')'
+
+%token IF ELSE PRINT 
+
+%token WHILE NUM IDENT CARACTERE
+%token MAIN
+%token VOID
+%token RETURN
+
+%token CONST
+%token INT CHAR
+%token TRUE FALSE
+
+/*
+%union {
+	int entier;
+	char* string;
+	char caract;
+}
 
 
+%token <entier> NUM 
+%token <string> IDENT
+%token <string> CARACTERE
+
+%type <entier> Ifbool IfboolONE
+%type <entier> JUMPELSE JUMPIFEQUAL JUMPIFNOT JUMPIFNOTEQUAL JUMPIFGEQ JUMPIFGREATER JUMPIFLEQ JUMPIFLESS
+%type <entier> Exp
+
+*/
 %%
 
 Progamme : 
@@ -81,7 +107,7 @@ Progamme :
 /* Declaration de la liste des constante */	
 DeclConst: 
 	/* vide */
-	| CONST ListConst ';' DeclConst	   
+	| CONST ListConst ';' DeclConst /* Ajout dans table des symbol */	   
 	;
   
 ListConst : 
@@ -105,8 +131,8 @@ DeclVarPuisFonct :
 	| CHAR ListVar ';' DeclVarPuisFonct
 	| DeclFonct
 	;
-
 	
+/* endroit ou Rajouter dans table des symbol */
 ListVar : 
 	Ident ',' ListVar
 	| Ident
@@ -119,7 +145,7 @@ Tab :
 	| '[' NUM ']' Tab 	
 	;
 DeclMain :
-	EnTeteMain Corps
+	EnTeteMain Corps 
 	;
 EnTeteMain: 
 	MAIN '(' ')'
@@ -129,7 +155,7 @@ DeclFonct :
 	| DeclUneFonct
 	;
 DeclUneFonct:
-	EnTeteFonct Corps
+	EnTeteFonct { nbElemFonc = 0;} Corps 
 	;
 EnTeteFonct : 
 	INT IDENT '(' Parametres ')'
@@ -143,8 +169,8 @@ Parametres :
 ListTypVar :
 	INT IDENT ',' ListTypVar
 	| CHAR IDENT ',' ListTypVar  
-	| INT IDENT
-	| CHAR IDENT	
+	| INT IDENT /*{ insert_symbol($2,integer); }*/
+	| CHAR IDENT /*{ insert_symbol($2,caracter); }*/	
 	;
 Corps : 
 	'{' DeclConst DeclVar SuiteInstr '}'
@@ -158,8 +184,8 @@ Corps :
  */	
 DeclVar : 
 	/*vide*/
-	| DeclVar INT ListVar ';' /*{ insert_symbol((char*)$3,$2);}  Erreur pour le moment */
-	| DeclVar CHAR ListVar ';'  
+	| DeclVar INT ListVar ';' /* Ajout dans table des symbole */ 
+	| DeclVar CHAR ListVar ';' /* Ajout dans table des symbole */
 	;
 
 SuiteInstr :
@@ -168,19 +194,20 @@ SuiteInstr :
     ;
 	
 Instr :
-	LValue '=' Exp ';'
+	LValue '=' Exp ';' { /* update_symbol (LValue,Exp) */ }
 	| IF '(' Ifbool ')' InstrIF
 		
 	| WHILE  { instarg("LABEL",$$=jump_label++);} '(' Ifbool ')' {inst("POP");instarg("JUMPF",$$=jump_label++);}      	
 		Instr	{instarg("JUMP",$2); instarg("LABEL",$6);}
 	
-	| RETURN Exp ';' { 
+	| RETURN Exp ';' { /* $$=Exp Jump */
 	
 	}
-	| RETURN ';' { 
+	| RETURN ';' { /* Jump */
 	
 	}
-	| IDENT '(' Arguments ')' ';' { 
+	/* Appel d'une fonction' */
+	| IDENT '(' Arguments ')' ';' { /* Jump -> label de IDENT */ 
 	
 	}
 		/* READ */
@@ -248,7 +275,7 @@ Exp :
 		inst("DIV");
 		inst("PUSH");
 	}
-	| '(' Exp '%' Exp ')' {
+	| Exp '%' Exp {
 		inst("POP");
 		inst("SWAP"); 
 		inst("POP");
@@ -268,14 +295,17 @@ Exp :
 	/* NEGATION Exp */	
 	
 	/* */
-	| '(' Exp ')' { }
-	| LValue { }
+	| '(' Exp ')' { $$=$2; }
+	| LValue { $$=$1; }
 	| NUM { 
 		instarg("SET",$1);
         inst("PUSH"); 
     }
-	| CARACTERE { }
-	| IDENT '(' Arguments ')' { }
+	| CARACTERE { /* A voir */
+		instarg("SET",$1);
+        inst("PUSH"); 
+	}
+	| IDENT '(' Arguments ')' { } /* Jump -> label fonctions */
   ;
 
 
@@ -414,23 +444,58 @@ void ifand(){
 
 }
 
-Bool find(char *symbol){
+int find(char *symbol,Type type){
 	int i;
-	for(i=0;i<MAX_SIZE;i++){
-		if(strcmp(table[i].name,symbol))
-			return true;
+	for(i=nbElemTable;i>0;i--){
+		if(strcmp(table[i].name,symbol) && table[i].type == type)
+			return i;
 	}
-	return false;
+	return -1;
 }
 
 
 void insert_symbol(char* symbol,Type type){
-	if(!find(symbol)){
-		table[nbElemTable].name=(char*)calloc(sizeof(char),strlen(symbol));
+	if(find(symbol,type)<0){
+		nbElemTable++;
+		nbElemFonc++;
+		if(NULL ==(table = (Symbol*)realloc(table,nbElemTable))){
+			perror("realloc\n");
+			exit(EXIT_FAILURE);
+		}
+		
+		table[nbElemTable].name=(char*)calloc(sizeof(char),strlen(symbol)+1);
 		strcpy(table[nbElemTable].name,symbol);
 		table[nbElemTable].type = type;
-		nbElemTable++;
+		/*if(type == 1) integer 
+			table[nbElemTable].taille=sizeof(int);
+		else
+			table[nbElemTable].taille=sizeof(char);*/
+		
+		
+		
 	}	
+}
+
+void update_symbole(char* symbol,Type type,int value){
+	int i=-1;
+	if(0<=(i=find(symbol,type))){
+		table[i].value = value;
+	}
+}
+
+void delete_symbol(){
+	nbElemTable--;
+	if(NULL ==(table = (Symbol*)realloc(table,nbElemTable))){
+		perror("realloc\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void delete_symbol_fonc(){
+	int i=-1;
+	for(i=nbElemTable;i>nbElemTable-nbElemFonc;i--){
+		delete_symbol();
+	}
 }
 
 
@@ -469,9 +534,8 @@ int main(int argc, char** argv) {
     fprintf(stderr,"usage: %s [src]\n",argv[0]);
     return 1;
   }
-  instarg("ALLOC",1);
   yyparse();
-  instarg("FREE",1);
+
   endProgram();
   return 0;
 }

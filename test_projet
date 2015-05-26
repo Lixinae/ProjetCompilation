@@ -1,10 +1,14 @@
 ALLOC	1
-SET	4
+SET	1024
 PUSH
-#---------truc
 POP
 WRITE
-LABEL	0
+#---affichage
+POP
+WRITE
+#---affichage
+SET	4
+PUSH
 SET	10
 PUSH
 POP
@@ -12,20 +16,11 @@ SWAP
 POP
 LESS
 PUSH
-POP
-JUMPF	2
-LABEL	1
-SET	1
+SET	42
 PUSH
-POP
-SWAP
-POP
-ADD
-PUSH
-#---------truc
 POP
 WRITE
-JUMP	0
-LABEL	2
+#---affichage
+LABEL	0
 FREE	1
 HALT

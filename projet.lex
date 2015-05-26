@@ -16,7 +16,7 @@
 "const" {return CONST;}
 "true" {return TRUE;}
 "false" {return FALSE;}
-"'"[a-zA-Z]+"'" {return CARACTERE;}
+"'"[a-zA-Z]"'" {return CARACTERE;}
 [A-Za-z]+ {return IDENT;}
 . return yytext[0];
 %%
