@@ -3,7 +3,7 @@
 %}
 %%
 [ \t\n]+ ;
-[0-9]+ {sscanf(yytext,"%d",&yylval); return NUM;}
+[0-9]+ {sscanf(yytext,"%d",&yylval.entier); return NUM;}
 "if" {return IF;}
 "else" {return ELSE;}
 "print" {return PRINT;}
@@ -16,7 +16,7 @@
 "const" {return CONST;}
 "true" {return TRUE;}
 "false" {return FALSE;}
-"'"[a-zA-Z]"'" {return CARACTERE;}
-[A-Za-z]+ {return IDENT;}
+"'"[a-zA-Z]"'" {yylval.caract = yytext[1];return CARACTERE;}
+[A-Za-z]+ {sscanf(yytext,"%s",yylval.string);return IDENT;}
 . return yytext[0];
 %%

@@ -13,13 +13,22 @@ main(){
 	const stylo=5;
 	int moncul,mouchoir;
 	char manette;
-
-	print (x);
 	
-	if(4<10){
-		print (42);
+	if(true && false || false && false || true){
+		print (0);
+		if(true && false){
+			print (1);
+		}
+		if(true || false){
+			print (2);
+		}
+		if(false || true && false || false && true){
+			print (3);
+		}
 	}
-	
+	else{
+		print (50);
+	}
 	bouteille();
 	
 	return;

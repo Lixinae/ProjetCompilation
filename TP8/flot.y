@@ -48,9 +48,12 @@ INSTRUCTION :
 
 	  | IDENT '=' E ';' {   stockage();    } 	  
 	  
-	  | IF '(' IFBOOL{inst("POP");instarg("JUMPF",$$=jump_label++);instarg("LABEL",$3);}')' INSTRUCTIONIF
+	  | IF '(' IFBOOL ')' JUMPIF INSTRUCTION %prec NOTELSE {instarg ("LABEL", $5) ; }
+
+	  | IF '(' IFBOOL ')' JUMPIF INSTRUCTION ELSE JUMPELSE{ instarg("LABEL", $5) ; } INSTRUCTION{ instarg("LABEL", $8) ;}	
 	  
-	  | WHILE  { instarg("LABEL",$$=jump_label++);} '(' IFBOOL ')' {inst("POP");instarg("JUMPF",$$=jump_label++);}      	
+	  | WHILE  { instarg("LABEL",$$=jump_label++);} '(' IFBOOL ')' 
+	  {inst("POP");jump_label++;instarg("JUMPF",$$=jump_label++);instarg("LABEL",$2+1);}      	
 		INSTRUCTION	{instarg("JUMP",$2); instarg("LABEL",$6);}
 		
 	  | '{' INSTRUCTIONETOILE '}'
@@ -86,11 +89,11 @@ INSTRUCTIONETOILE  : /* rien*/ | INSTRUCTION INSTRUCTIONETOILE
       test -> | IF {instarg("LABEL",$$=jump_label++);} '(' IFBOOL ')' {inst("POP");instarg("JUMPF",$$=jump_label++);}
       
       IF '(' Ifbool{inst("POP");instarg("JUMPF",jump_label+1);instarg("LABEL",$3);jump_label++;}')' InstrIF
-      */
+      
 INSTRUCTIONIF : INSTRUCTION %prec NOTELSE {instarg("LABEL",jump_label++);}
 				| INSTRUCTION ELSE JUMPELSE {instarg("LABEL",$3-1);} INSTRUCTION {instarg("LABEL",$3);}
 				; 
-				
+				*/
 IFBOOL:
 	 IFBOOLONE  '|' '|' IFBOOL {ifor();$$=$4;}
 	 | IFBOOLONE '&' '&' IFBOOL {ifand();$$=$4;}	 
@@ -108,7 +111,12 @@ IFBOOLONE:
 	| FALSE {instarg("SET",0); inst("PUSH");$$=jump_label;}
 	;
 
-
+JUMPIF :{
+	inst("POP");
+	instarg("JUMPF", $$=jump_label+1);
+	instarg("LABEL",jump_label++);
+	jump_label++;
+};
 JUMPIFEQUAL:{
 		inst("POP"); 
 		inst("SWAP"); 
