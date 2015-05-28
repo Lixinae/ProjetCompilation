@@ -1,17 +1,17 @@
 const y=10;/* if(true) { print 4634154 }arg */
 
-int bite(void){
+entier bite(void){
 	
 	print (1024);
 	return;
 }
 
-int couille(void){
+entier couille(void){
 	
 	print (512);
 }
 
-int poing(void){
+entier poing(void){
 	
 	print (256);
 }
