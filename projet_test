@@ -1,18 +1,27 @@
-const y=10;
+const y=10;/* if(true) { print 4634154 }arg */
 
-int a,b,c;
-char d;
-
-int bouteille(void){
+int bite(void){
 	
 	print (1024);
+	return;
+}
+
+int couille(void){
+	
+	print (512);
+}
+
+int poing(void){
+	
+	print (256);
 }
 
 main(){
 
 	const stylo=5;
-	int moncul,mouchoir;
-	char manette;
+
+	stylo = 20+5;
+	print (stylo);
 	
 	if(true && false || false && false || true){
 		print (0);
@@ -29,9 +38,9 @@ main(){
 	else{
 		print (50);
 	}
-	bouteille();
 	
-	return;
+	bite();
+
 }
 
 
