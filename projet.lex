@@ -10,15 +10,14 @@
 <comment>[^*\n]* ;
 <comment>"*"+[^*/\n]* ;
 <comment>"*"+"/" BEGIN(INITIAL);
-
 [ \t\n]+ ;
 [0-9]+ {sscanf(yytext,"%d",&yylval.entier); return NUM;}
 "if" {return IF;}
 "else" {return ELSE;}
 "print" {return PRINT;}
 "while" {return WHILE;}
-"int" {return INT;}
-"char" {return CHAR;}
+"entier" {return INT;}
+"caractere" {return CHAR;}
 "return" {return RETURN;}
 "void" {return VOID;}
 "main" {return MAIN;}

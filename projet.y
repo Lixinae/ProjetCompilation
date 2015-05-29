@@ -43,7 +43,7 @@ typedef struct {
  int yylex();
  FILE* yyin; 
  
- int jump_label=0, jump_label_main;
+ int jump_label=0, jump_label_main,jump_label_neg=-1;
  void inst(const char *);
  void instarg(const char *,int);
  void comment(const char *);
@@ -51,8 +51,10 @@ typedef struct {
  
  int find(char*); /* Verifie si le symbole donné est dans la table */
  
- void insert_value(int,Type);
+ void insert_value(int);
  void insert_type(Type);
+ 
+ void insert_type_rec(Type);
  
  
  void insert_symbol(char*); /* insert le symbole "symbol" de type "type" dans la table*/
@@ -73,12 +75,18 @@ typedef struct {
  void insert_fonc_tab(char*,int,Type);
  
  void printTabFunc();
+ void printTabSymbol();
  
  
  int nbElemTable=0; /* Nombre de variable dans la table */
  int nbElemFonc=0; /* Nombre de variable dans la fonctions */
  
  int nbFunc=0;
+ 
+ int countSymbolVar=0;
+ 
+ FILE* fd_fichier=NULL;
+ 
  
  Symbol table[2048]; /*MAX_SIZE]; Table des symbol */
  Func tableFunc[1024];
@@ -137,8 +145,8 @@ typedef struct {
 %type <entier> JUMPELSE JUMPIFEQUAL JUMPIFNOT JUMPIFNOTEQUAL JUMPIFGEQ JUMPIFGREATER JUMPIFLEQ JUMPIFLESS
 */
 %type <entier> JUMPELSE 
-%type <entier> Exp NombreSigne 
-%type <string> LValue
+%type <entier> Exp NombreSigne Type_val
+%type <string> LValue Ident
 
 
 
@@ -147,7 +155,7 @@ typedef struct {
 
 Progamme : 
 	/* Jump au label du main  */
-	DeclConst {jump_label_main = jump_label; instarg("JUMP",jump_label++);} DeclVarPuisFonct DeclMain
+	DeclConst {jump_label_main = jump_label; instarg("JUMP",jump_label++);} DeclVarPuisFonct /*{printTabSymbol();}*/ DeclMain
     ;
 
 /* Declaration de la liste des constante */	
@@ -161,8 +169,8 @@ ListConst :
 	| IDENT '=' Litteral {insert_symbol((char*)$1);}
 	;
 Litteral :
-	NombreSigne {printf("#---Nombre signe $1 = %d\n",$1); insert_value($1,2);}
-	| CARACTERE { insert_value($1,1);}
+	NombreSigne {/*fprintf(fd_fichier,"#---Nombre signe $1 = %d\n",$1);*/ insert_value($1);insert_type(2);}
+	| CARACTERE { insert_value($1);insert_type(1);}
 	;
 
 NombreSigne:
@@ -173,15 +181,20 @@ NombreSigne:
 
 DeclVarPuisFonct :
 	/* vide */
-	| INT ListVar ';' DeclVarPuisFonct
-	| CHAR ListVar ';' DeclVarPuisFonct
+	| INT ListVar {insert_type_rec(2); } ';' DeclVarPuisFonct 
+	| CHAR ListVar {insert_type_rec(1);} ';' DeclVarPuisFonct
 	| DeclFonct
 	;
+
 	
 /* endroit ou Rajouter dans table des symbol */
 ListVar : 
-	Ident ',' ListVar /*{insert_symbol((char*)$1);}*/
-	| Ident /*{insert_symbol((char*)$1);}*/
+	Ident Type_val ',' ListVar {countSymbolVar++; insert_type($2);insert_symbol((char*)$1);}
+	| Ident {countSymbolVar++; insert_symbol((char*)$1);}
+	;
+Type_val:{
+	$$=table[nbElemTable].type;
+	}	
 	;
 Ident : 
 	IDENT Tab
@@ -205,22 +218,18 @@ DeclUneFonct:
 				Corps {delete_symbol_fonc();}
 	;
 EnTeteFonct : 
-	INT IDENT '(' Parametres ')' {insert_fonc_tab($2,jump_label,2);
-									/* Bidouille */
-									/*tableFunc[nbFunc-1].typeRetour=2;
-									tableFunc[nbFunc-1].label=jump_label;
-									*/
-									/*tableFunc[0].typeRetour = 2;*/}								
-	| CHAR IDENT '(' Parametres ')' {insert_fonc_tab($2,jump_label,1);}
-	| VOID IDENT '(' Parametres ')' {insert_fonc_tab($2,jump_label,0);}
+	INT IDENT '(' {nbElemTable-=nbElemFonc;} Parametres ')' {insert_fonc_tab($2,jump_label,2);}								
+	| CHAR IDENT '(' {nbElemTable-=nbElemFonc;} Parametres ')' {insert_fonc_tab($2,jump_label,1);}
+	| VOID IDENT '(' {nbElemTable-=nbElemFonc;} Parametres ')' {insert_fonc_tab($2,jump_label,0);}
 	;
 Parametres : 
 	VOID
 	| ListTypVar
 	;
+	/* Verifier bon nombre arguments */
 ListTypVar :
-	INT IDENT ',' ListTypVar
-	| CHAR IDENT ',' ListTypVar  
+	INT IDENT {insert_symbol($2); }',' ListTypVar 
+	| CHAR IDENT {insert_symbol($2); }',' ListTypVar  
 	| INT IDENT /*{ insert_symbol($2,integer); }*/
 	| CHAR IDENT /*{ insert_symbol($2,caracter); }*/	
 	;
@@ -248,34 +257,15 @@ SuiteInstr :
 	
 /* Faire le truc sur les variables */	
 Instr :
-	LValue '=' Exp ';' { printf("#------- %s = %d\n",$1,$3);update_symbol ($1,$3); }
-	/*| IF '(' Ifbool JUMPIF {instarg("LABEL",$3);} ')' InstrIF
-		*/
-			
-	/*
-	| IF '(' IFBOOL ')' JUMPIF INSTRUCTION %prec NOTELSE {instarg ("LABEL", $5) ; }
-
-	| IF '(' IFBOOL ')' JUMPIF INSTRUCTION ELSE JUMPELSE{ instarg("LABEL", $5) ; } INSTRUCTION{ instarg("LABEL", $8) ;}	
-	  
-	| WHILE  { instarg("LABEL",$$=jump_label++);} '(' IFBOOL ')' 
-	{inst("POP");jump_label++;instarg("JUMPF",$$=jump_label++);instarg("LABEL",$2+1);}      	
-	INSTRUCTION	{instarg("JUMP",$2); instarg("LABEL",$6);} 
-
-	*/		
 	
-		/* A corriger peut etre */ 
-	/*| IF '(' Exp ')' JUMPIF Instr %prec NOTELSE {instarg ("LABEL", $5) ; }
-
-	| IF '(' Exp ')' JUMPIF Instr ELSE JUMPELSE{ instarg("LABEL", $5) ; } Instr { instarg("LABEL", $8) ;}	
-		*/
+	LValue '=' Exp ';' { fprintf(fd_fichier,"#------- %s = %d\n",$1,$3);update_symbol ($1,$3); }
 		
 	| IF '(' Exp ')' JUMPIF Instr %prec NOTELSE {instarg ("LABEL", $5) ; }
 
 	| IF '(' Exp ')' JUMPIF Instr ELSE JUMPELSE{ instarg("LABEL", $5) ; } Instr { instarg("LABEL", $8) ;}		
 		
 	| WHILE  LABEL '(' Exp ')' JUMPWHILE {instarg("LABEL",$2+1);} Instr {instarg("JUMP",$2); instarg("LABEL",$6);}	
-	/*| WHILE LABEL '(' Exp ')' JUMPIF	Instr {instarg("JUMP",$2); instarg("LABEL",$6);}
-	*/
+
 	| RETURN Exp ';' { /* $$=Exp Jump */
 		instarg("SET",$2);inst("PUSH");inst("RETURN");
 	}
@@ -287,7 +277,10 @@ Instr :
 									if(i>=0){ 
 										instarg("CALL",i);	
 									} 
-									else { printf("%s doesn't exist\n",$1); exit(EXIT_FAILURE);} ;
+									else { 
+										fprintf(fd_fichier,"%s doesn't exist\n",$1); 
+										exit(EXIT_FAILURE);
+									} ;
 	
 	}
 		/* Lis un entier tape au clavier -> creation d'un symbol dans la table */
@@ -298,8 +291,9 @@ Instr :
 	| READCH '(' IDENT ')' ';' { inst("READCH");inst("PUSH");
 
 	}
-	| PRINT '(' Exp {inst("POP");inst("WRITE");comment("---affichage");}')' ';' 
 	/* recup symbole dans la table , push symbol -> pop -> write */
+	| PRINT '(' Exp {inst("POP");inst("WRITE");comment("---affichage");}')' ';' 
+	
 	| ';'
 	| '{' SuiteInstr '}'
 	;	
@@ -326,8 +320,8 @@ TabExp:
 	;
 
 ListExp : 
-	ListExp ',' Exp 
-	| Exp  
+	ListExp ',' Exp {insert_value($3);nbElemTable++;nbElemFonc++; } 
+	| Exp {insert_value($1);nbElemTable++;nbElemFonc++; }  
 	;	
 
  
@@ -339,6 +333,7 @@ Exp :
 		inst("POP");
 		inst("ADD");
 		inst("PUSH");
+		$$=$1+$3;
 	}
 	| Exp '-' Exp {
 		inst("POP");
@@ -346,6 +341,7 @@ Exp :
 		inst("POP");
 		inst("SUB");
 		inst("PUSH");
+		$$=$1-$3;
 	}
 	
 	/* Exp DIVSTAR Exp */
@@ -355,6 +351,7 @@ Exp :
 		inst("POP");
 		inst("MUL");
 		inst("PUSH");
+		$$=$1*$3;
 	}	
 	| Exp '/' Exp {
 		inst("POP");
@@ -362,6 +359,7 @@ Exp :
 		inst("POP");
 		inst("DIV");
 		inst("PUSH");
+		$$=$1/$3;
 	}
 	| Exp '%' Exp {
 		inst("POP");
@@ -369,21 +367,24 @@ Exp :
 		inst("POP");
 		inst("MOD");
 		inst("PUSH");
+		$$=$1%$3;
 	}
+	/* Exp Comp Exp */
     | Exp '<' Exp {
 		inst("POP");
 		inst("SWAP"); 
 		inst("POP");
 		inst("LESS");
 		inst("PUSH");
-	}
-	/* Exp Comp Exp */
+		$$=$1<$3;
+	}	
     | Exp '>' Exp {
 		inst("POP"); 
 		inst("SWAP"); 
 		inst("POP");
 		inst("GREATER");
 		inst("PUSH");
+		$$=$1>$3;
 	}
     | Exp '<''=' Exp  {
 		inst("POP"); 
@@ -391,14 +392,15 @@ Exp :
 		inst("POP");
 		inst("LEQ");
 		inst("PUSH");
+		$$=$1<=$4;
 	}     
     | Exp '>''=' Exp {
     	inst("POP"); 
         inst("SWAP"); 
 		inst("POP");
 		inst("GEQ");
-		
 		inst("PUSH");
+		$$=$1>=$4;
 	}
     | Exp '=''=' Exp {
 		inst("POP"); 
@@ -406,6 +408,7 @@ Exp :
 		inst("POP");
 		inst("EQUAL");
 		inst("PUSH");
+		$$=$1==$4;
 	}
     | Exp '!''=' Exp {
 		inst("POP"); 
@@ -413,44 +416,49 @@ Exp :
 		inst("POP");
 		inst("NOTEQ");
 		inst("PUSH");
+		$$=$1!=$4;
 	}
     /* ADDSUB Exp */
 	| '(' '-' Exp ')' {
 		inst("POP");
 		inst("NEG");
-		inst("PUSH"); 
+		inst("PUSH");
+		$$=-$3; 
 	}
 	
-	/*| Ifbool*/
 	/*Exp BOPE Exp */
 	| Exp '|' '|' Exp {ifor();$$=$4;}
 	| Exp '&' '&' Exp {ifand();$$=$4;}
-	/* IfboolONE */
 	
-	
-    | '!' Exp { inst("POP");
+	/* NEGATION Exp */	
+    | '!' Exp { 
+    	inst("POP");
+    	instarg("JUMPF",jump_label_neg);
+    	inst("PUSH");
+    	inst("SWAP");
+    	inst("POP");
+    	inst("DIV");
+    	instarg("LABEL",jump_label_neg--);
 		inst("NEG");
 		inst("SWAP");
 		instarg("SET",1);
 		inst("ADD");
-		inst("PUSH");}
+		inst("PUSH");
+	}
 	| TRUE {instarg("SET",1); inst("PUSH");}
 	| FALSE {instarg("SET",0); inst("PUSH");}
 
-	
-	/* NEGATION Exp */	
-	
-	/* */
 	| '(' Exp ')' { $$=$2; }
-	| LValue {int i=find($1);fprintf(stdout,"#---$1 = %s i = %d table[%d].value = %d\n",$1,i,i,table[i].value);
+	| LValue {int i=find($1);fprintf(fd_fichier,"#---$1 = %s i = %d table[%d].value = %d\n",$1,i,i,table[i].value);
 				 if(i>=0){
 				 	instarg("SET",table[i].value);
 				 	inst("PUSH");
 				 } 
 				 else { 
-				 	printf("#---%s doesn't exist\n",$1); 
+				 	fprintf(fd_fichier,"#---%s doesn't exist\n",$1); 
 				 	exit(EXIT_FAILURE);
 				 }
+				 $$=table[i].value;
 	}
 	| NUM { 
 		instarg("SET",$1);
@@ -460,103 +468,18 @@ Exp :
 		instarg("SET",$1);
         inst("PUSH"); 
 	}
-	| IDENT '(' Arguments ')' { } /* Jump -> label fonctions */
+	| IDENT '(' Arguments ')' { int i=find_fonc($1);
+									if(i>=0){ 
+										instarg("CALL",i);	
+									} 
+									else { 
+										fprintf(fd_fichier,"%s doesn't exist\n",$1);
+										exit(EXIT_FAILURE);
+									} ; 
+							  } 
   ;
 
-/*
-InstrIF :
-	 Instr %prec NOTELSE {instarg("LABEL",jump_label++);}
-     | Instr ELSE JUMPELSE {instarg("LABEL",$3-1);} Instr {instarg("LABEL",$3);}
-	 ;
-	*/ 
-	
-/* Exp BOPE Exp */	
-/*
-Ifbool:
-	 IfboolONE  '|' '|' Ifbool {ifor();$$=$4;}
-	 | IfboolONE '&' '&' Ifbool {ifand();$$=$4;}	 
-	 | IfboolONE {$$=$1;}
-	;*/
-/* Exp comp Exp */
-/*
-IfboolONE: 
-    Exp '<' Exp JUMPIFLESS { $$=$4;}
-    |  Exp '>' Exp JUMPIFGREATER { $$=$4;}
-    |  Exp '<''=' Exp JUMPIFLEQ {$$=$5;}    
-    |  Exp '>''=' Exp JUMPIFGEQ {$$=$5;}
-    |  Exp '=''=' Exp JUMPIFEQUAL {$$=$5;}
-    |  Exp '!''=' Exp JUMPIFNOTEQUAL {$$=$5;}
-    | '!' Exp JUMPIFNOT {$$=$3;}
-	| TRUE {instarg("SET",1); inst("PUSH");}
-	| FALSE {instarg("SET",0); inst("PUSH");}
-	;
-*/
-/*
-JUMPIFNOT:{
-		inst("POP");
-		inst("NEG");
-		inst("SWAP");
-		instarg("SET",1);
-		inst("ADD");
-		inst("PUSH");
-		}
-	;
-
-JUMPIFEQUAL:{
-		inst("POP"); 
-		inst("SWAP"); 
-		inst("POP");
-		inst("EQUAL");
-		$$=jump_label;
-		inst("PUSH");
-	}
-	;
-JUMPIFNOTEQUAL:{
-		inst("POP"); 
-		inst("SWAP"); 
-		inst("POP");
-		inst("NOTEQ");
-		$$=jump_label;
-		inst("PUSH");
-	}
-	;   	      
-JUMPIFLESS :  {
-		inst("POP"); 
-		inst("SWAP"); 
-		inst("POP");
-		inst("LESS");
-		$$=jump_label;
-		inst("PUSH");
-	}
-	;
-JUMPIFLEQ :  {
-		inst("POP"); 
-		inst("SWAP"); 
-		inst("POP");
-		inst("LEQ");
-		$$=jump_label;
-		inst("PUSH");
-	}
-	;	 
-JUMPIFGREATER :  {
-		inst("POP"); 
-    	inst("SWAP"); 
-		inst("POP");
-		inst("GREATER");
-		$$=jump_label;
-		inst("PUSH");
-	}	 
-	;
-JUMPIFGEQ :  {
-		inst("POP"); 
-        inst("SWAP"); 
-		inst("POP");
-		inst("GEQ");
-		$$=jump_label;
-		inst("PUSH");
-	 }	 
-	 ;	
-	 */  
+ 
 JUMPELSE : {
 	instarg("JUMP", $$=jump_label++);
 
@@ -579,8 +502,6 @@ JUMPWHILE : {
 	inst("POP");
 	jump_label++;
 	instarg("JUMPF",$$=jump_label++);
-
-
 }
 ;
 
@@ -604,6 +525,12 @@ void restoration(){
 
 void ifor(){
 	inst("POP");
+    	instarg("JUMPF",jump_label_neg);
+    	inst("PUSH");
+    	inst("SWAP");
+    	inst("POP");
+    	inst("DIV");
+    	instarg("LABEL",jump_label_neg--);
 	inst("NEG");
 	inst("SWAP");
 	instarg("SET",1);
@@ -614,6 +541,12 @@ void ifor(){
 
 void ifand(){
 	inst("POP");
+    	instarg("JUMPF",jump_label_neg);
+    	inst("PUSH");
+    	inst("SWAP");
+    	inst("POP");
+    	inst("DIV");
+    	instarg("LABEL",jump_label_neg--);
 	inst("SWAP");
 	inst("POP");
 	inst("ADD");
@@ -634,13 +567,20 @@ void init_string(char *string,int size){
 void printTabFunc(){
 	int i;
 	for(i=nbFunc-1;i>=0;i--){
-		fprintf(stdout,"#------i = %d name : %s Type : %d Label : %d \n",i,tableFunc[i].name,tableFunc[i].typeRetour,tableFunc[i].label);
+		fprintf(fd_fichier,"#------i = %d name : %s Type : %d Label : %d \n",i,tableFunc[i].name,tableFunc[i].typeRetour,tableFunc[i].label);
 	}
 }
 
+void printTabSymbol(){
+	int i;	
+	for(i=nbElemTable;i>=0;i--){
+		fprintf(stdout,"#------table[%d].name = %s type : %d\n",i,table[i].name,table[i].type);
+	}
+}
+
+
 int find(char *symbol){
-	int i;
-	
+	int i;	
 	for(i=nbElemTable;i>=0;i--){
 		/*fprintf(stdout,"#------symbol = %s,table[%d].name = %s\n",symbol,i,table[i].name);*/
 		if(strcmp(table[i].name,symbol)==0)
@@ -649,12 +589,20 @@ int find(char *symbol){
 	return -1;
 }
 
-void insert_value(int value,Type type){
+void insert_value(int value){
 	table[nbElemTable].value=value;
-	insert_type(type);
 }
 void insert_type(Type type){
 	table[nbElemTable].type = type;
+}
+
+/*  */
+void insert_type_rec(Type type){	
+	while(countSymbolVar>0){
+		table[nbElemTable-countSymbolVar].type = type;
+		countSymbolVar--;
+	}
+
 }
 
 void insert_symbol(char* symbol){
@@ -669,7 +617,7 @@ void insert_symbol(char* symbol){
 		}*/
 	}
 	else{
-		fprintf(stdout,"Redeclaration of variable %s\n",symbol);	
+		fprintf(fd_fichier,"Redeclaration of variable %s\n",symbol);	
 	}	
 }
 
@@ -720,14 +668,14 @@ void insert_fonc_tab(char* name,int label,Type type){
 		
 	}
 	else{
-		fprintf(stdout,"Redeclaration of function %s\n",name);	
+		fprintf(fd_fichier,"#----Redeclaration of function %s\n",name);	
 	}
 
 }
 
 /*
 void init_table_symbol(){
-	/* Alloc du tableau de taille 0 /
+	 Alloc du tableau de taille 0 
   	if(NULL ==(table = (Symbol*)malloc((nbElemTable+1)*sizeof(Symbol)))){
 		perror("malloc\n");
 		exit(EXIT_FAILURE);
@@ -758,36 +706,60 @@ int yyerror(char* s) {
 }
 
 void endProgram() {
-  printf("HALT\n");
+  fprintf(fd_fichier,"HALT\n");
 }
 
 void inst(const char *s){
-  printf("%s\n",s);
+  fprintf(fd_fichier,"%s\n",s);
 }
 
 void instarg(const char *s,int n){
-  printf("%s\t%d\n",s,n);
+  fprintf(fd_fichier,"%s\t%d\n",s,n);
 }
 
 
 void comment(const char *s){
-  printf("#%s\n",s);
+  fprintf(fd_fichier,"#%s\n",s);
 }
 
 int main(int argc, char** argv) {
+	char optstring[]="o";
+	char option;
+	char* string = (char*)malloc((strlen(argv[1]))*sizeof(char)); 
+
   if(argc==2){
     yyin = fopen(argv[1],"r");
+    fd_fichier=stdout;
   }
   else if(argc==1){
     yyin = stdin;
   }
+  else if(argc==3){
+  	yyin = fopen(argv[1],"r");
+  	while((option=getopt(argc,argv,optstring))!=-1){
+		switch(option){
+		  case 'o':
+		  	strcpy(string,argv[1]);	
+			fd_fichier = fopen(strcat(string,".vm"),"w");
+			break;
+		  default:
+		  	fd_fichier=stdout;
+			break;
+		}	
+  	}  
+  }
+  
   else{
     fprintf(stderr,"usage: %s [src]\n",argv[0]);
     return 1;
   }
-  init();
-  yyparse();
+  
+  
+	
 
+
+  yyparse();
   endProgram();
+  free(string);
   return 0;
 }

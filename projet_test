@@ -1,5 +1,8 @@
 const y=10;/* if(true) { print 4634154 }arg */
 
+entier a,b,c;
+caractere d,e,f;
+
 entier bite(void){
 	
 	print (1024);
@@ -21,8 +24,16 @@ main(){
 	const stylo=5;
 
 	stylo = 20+5;
+	
+	stylo = stylo + 20;
 	print (stylo);
 	
+	stylo = y + stylo + 1<5;
+	
+	read (prout);
+	
+	
+	/*
 	if(true && false || false && false || true){
 		print (0);
 		if(true && false){
@@ -38,7 +49,7 @@ main(){
 	else{
 		print (50);
 	}
-	
+	*/
 	bite();
 
 }
