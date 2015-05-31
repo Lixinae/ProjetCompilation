@@ -23,7 +23,7 @@ entier idk(entier noname){
 main(){
 
 	const stylo=5;
-
+	const x=0;
 	stylo = 5*12;
 	print (stylo+5);
 	
@@ -33,7 +33,18 @@ main(){
 	else{
 		print (6545);
 	}
+	if(true || false){
+		print ((-1));
+	}
 	print (idk(1234));
+	
+	/*
+	
+	while(1<10){
+		print (30);	
+	}
+	*/
+	
 	/*debian(4321);*/
 
 
