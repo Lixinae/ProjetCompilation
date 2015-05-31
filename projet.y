@@ -23,19 +23,20 @@ typedef struct {
 				2 : integer 
 			  	*/
 	char name[MAX_SIZE];
-	/*int size; inutile */ 
 	int value;
-	
-	/* Rajouter une variable pour indiquer qu'un symbol est "mort" et donc reutilisable -> fait avec nbElemFonc */
 
 }Symbol;
 
 
 typedef struct {
 
-	char name[MAX_SIZE];
+	char name[MAX_SIZE]; /* Nom de la fonction */
 	Type typeRetour; /* A voir pour l'utilisation */
-	int label;
+	int label; /* Label correspondant a la fonction */
+	int nbArg; /* Nombre d'arguments d'une fonction */
+	Symbol listeArg[2048]; /* Contient la liste des arguments d'une fonction */
+	int nbVar; /* Nombre de variable dans une fonction */
+	Symbol listVar[2048]; /* Liste des variables de la fonction */
 
 }Func;
 
@@ -49,19 +50,15 @@ typedef struct {
  void comment(const char *);
  
  
- int find(char*); /* Verifie si le symbole donné est dans la table */
- 
- void insert_value(int);
- void insert_type(Type);
- 
- void insert_type_rec(Type);
- 
- 
- void insert_symbol(char*); /* insert le symbole "symbol" de type "type" dans la table*/
- void update_symbol(char*,int);/* Met a jour le symbol dans le table*/
+ int find(char *symbol,Symbol* table,int size); /* Verifie si le symbole donné est dans la table */ 
+ void insert_value(int value,Symbol* table,int indice);
+ void insert_type(Type type,Symbol* table,int indice); /* Insert le type dans la table "table" */
+ void insert_type_rec(Type type,Symbol* table,int nbElem,int* count); 
+ void insert_symbol(char*,Symbol* table,int *indice); /* insert le symbole "symbol" de type "type" dans la table*/
+ void update_symbol(char*,int,Symbol*,int size);/* Met a jour le symbol dans la table*/
  
  void delete_symbol_fonc();
- 
+ void printTabSymbol(Symbol*,int);
   /* Modifier les 2 fonctions
 	-> utiliser table des symbole
  */
@@ -75,21 +72,28 @@ typedef struct {
  void insert_fonc_tab(char*,int,Type);
  
  void printTabFunc();
- void printTabSymbol();
  
  
- int nbElemTable=0; /* Nombre de variable dans la table */
- int nbElemFonc=0; /* Nombre de variable dans la fonctions */
- 
- int nbFunc=0;
- 
- int countSymbolVar=0;
+
+ int countSymbolVar=0; /* Nombre de variable en parametre de fonction */
+ int countSymbolVarFonc=0; /* */
  
  FILE* fd_fichier=NULL;
  
  
- Symbol table[2048]; /*MAX_SIZE]; Table des symbol */
- Func tableFunc[1024];
+ Symbol tableS[2048]; /* Table des symbol global */
+ int nbElemTable=0; /* Nombre de variable dans la table des symbol global */
+ 
+ 
+ Func tableFunc[1024]; /* Table des fonction */
+ int nbFunc=1; /* Nombre de fonction dans la table des fonction */
+ 
+ int indFuncCourrant=-1; /* Indice de la fonction dans laquel on se trouve actuellement */
+ 
+ Symbol tableVarFonction[2048]; /* Table des symbol pour variable dans fonction */
+ int nbElemFonc=0; /* Nombre de variable dans tout les fonction*/
+ 
+ int indMain=0;/* Indice de la fonction main dans le tableau de fonction */
  
 %}
 
@@ -145,7 +149,7 @@ typedef struct {
 %type <entier> JUMPELSE JUMPIFEQUAL JUMPIFNOT JUMPIFNOTEQUAL JUMPIFGEQ JUMPIFGREATER JUMPIFLEQ JUMPIFLESS
 */
 %type <entier> JUMPELSE 
-%type <entier> Exp NombreSigne Type_val
+%type <entier> Exp NombreSigne Type_val Type_valFonc
 %type <string> LValue Ident
 
 
@@ -155,22 +159,49 @@ typedef struct {
 
 Progamme : 
 	/* Jump au label du main  */
-	DeclConst {jump_label_main = jump_label; instarg("JUMP",jump_label++);} DeclVarPuisFonct /*{printTabSymbol();}*/ DeclMain
+	DeclConst {jump_label_main = jump_label; instarg("JUMP",jump_label++);} 
+		DeclVarPuisFonct /*{printTabSymbol(tableS,nbElemTable);}*/
+			DeclMain
     ;
 
-/* Declaration de la liste des constante */	
+/* Declaration de la liste des constante global */	
 DeclConst: 
 	/* vide */
 	| CONST ListConst ';' DeclConst /* Ajout dans table des symbol */	   
-	;
-  
+	;  
 ListConst : 
-	IDENT '=' Litteral ',' {insert_symbol((char*)$1);} ListConst 
-	| IDENT '=' Litteral {insert_symbol((char*)$1);}
+	IDENT '=' Litteral ',' {insert_symbol((char*)$1,tableS,&nbElemTable);} 	ListConst 
+	| IDENT '=' Litteral {insert_symbol((char*)$1,tableS,&nbElemTable);}
 	;
 Litteral :
-	NombreSigne {/*fprintf(fd_fichier,"#---Nombre signe $1 = %d\n",$1);*/ insert_value($1);insert_type(2);}
-	| CARACTERE { insert_value($1);insert_type(1);}
+	NombreSigne {
+				insert_value($1,tableS,nbElemTable);
+				insert_type(2,tableS,nbElemTable);
+	}
+	| CARACTERE {
+				insert_value($1,tableS,nbElemTable);
+				insert_type(1,tableS,nbElemTable);
+	}
+	;
+
+/* Liste des constante d'une fonction */	
+DeclConstFonc:
+	/* vide */
+	| CONST ListConstFonc ';' DeclConstFonc
+	;	
+ListConstFonc:
+	IDENT '=' LitteralFonc ',' {insert_symbol((char*)$1,tableFunc[nbFunc].listVar,&nbElemFonc);} ListConstFonc 
+	| IDENT '=' LitteralFonc {insert_symbol((char*)$1,tableFunc[nbFunc].listVar,&nbElemFonc);}
+	;	
+LitteralFonc:
+	NombreSigne {
+				insert_value($1,tableFunc[nbFunc].listVar,nbElemFonc);
+				insert_type(2,tableFunc[nbFunc].listVar,nbElemFonc);
+	}
+	| CARACTERE { 
+				insert_value($1,tableFunc[nbFunc].listVar,nbElemFonc);
+				insert_type(1,tableFunc[nbFunc].listVar,nbElemFonc);
+	}
 	;
 
 NombreSigne:
@@ -181,21 +212,41 @@ NombreSigne:
 
 DeclVarPuisFonct :
 	/* vide */
-	| INT ListVar {insert_type_rec(2); } ';' DeclVarPuisFonct 
-	| CHAR ListVar {insert_type_rec(1);} ';' DeclVarPuisFonct
+	| INT ListVar {insert_type_rec(2,tableS,nbElemTable,&countSymbolVar); } ';' DeclVarPuisFonct 
+	| CHAR ListVar {insert_type_rec(1,tableS,nbElemTable,&countSymbolVar);} ';' DeclVarPuisFonct
 	| DeclFonct
 	;
-
+/* endroit ou Rajouter dans table des symbol
 	
-/* endroit ou Rajouter dans table des symbol */
+	countSymbolVar ? -> compte le nombre de symbol dans une fonction 
+ */ 
+/* Ajout de variable dans la table des symbol global */ 
 ListVar : 
-	Ident Type_val ',' ListVar {countSymbolVar++; insert_type($2);insert_symbol((char*)$1);}
-	| Ident {countSymbolVar++; insert_symbol((char*)$1);}
+	Ident Type_val ',' ListVar {countSymbolVar++;insert_type($2,tableS,nbElemTable);insert_symbol((char*)$1,tableS,&nbElemTable);}
+	| Ident {countSymbolVar++;insert_symbol((char*)$1,tableS,&nbElemTable);}
 	;
 Type_val:{
-	$$=table[nbElemTable].type;
+		$$=tableS[nbElemTable].type;/* A modifier */
 	}	
 	;
+	
+/* Pour l'ajout de variable dans la table des symbole de fonction */	
+ListVarFonc : 
+	Ident Type_valFonc ',' ListVarFonc {/*countSymbolVar++;*/
+		countSymbolVarFonc++; /* compte le nombre de variable dans la fonction */ 
+		insert_type($2,tableFunc[nbFunc-1].listVar,nbElemFonc);
+		insert_symbol((char*)$1,tableFunc[nbFunc-1].listVar,&nbElemFonc);
+		}
+	| Ident {
+		countSymbolVarFonc++;
+		insert_symbol((char*)$1,tableFunc[nbFunc-1].listVar,&nbElemFonc);}
+	;
+Type_valFonc:{
+		$$=tableFunc[nbFunc-1].listVar[nbElemFonc].type;
+		printf("#----tableFunc[%d].listVar[%d].type = %d\n",nbFunc-1,nbElemFonc,tableFunc[nbFunc-1].listVar[nbElemFonc].type);
+	}	
+	;	
+	
 Ident : 
 	IDENT Tab
 	;
@@ -204,7 +255,7 @@ Tab :
 	| '[' NUM ']' Tab 	
 	;
 DeclMain :
-	EnTeteMain { instarg("LABEL",jump_label_main);}Corps 
+	EnTeteMain { instarg("LABEL",jump_label_main);printf("#----nbFunc = %d\n",nbFunc);} Corps 
 	;
 EnTeteMain: 
 	MAIN '(' ')'
@@ -214,41 +265,75 @@ DeclFonct :
 	| DeclUneFonct
 	;
 DeclUneFonct:
-	EnTeteFonct { nbElemFonc = 0;instarg("LABEL",jump_label++);}
-				Corps {delete_symbol_fonc();}
+	EnTeteFonct { instarg("LABEL",jump_label++);} Corps
 	;
-EnTeteFonct : 
-	INT IDENT '(' {nbElemTable-=nbElemFonc;} Parametres ')' {insert_fonc_tab($2,jump_label,2);}								
-	| CHAR IDENT '(' {nbElemTable-=nbElemFonc;} Parametres ')' {insert_fonc_tab($2,jump_label,1);}
-	| VOID IDENT '(' {nbElemTable-=nbElemFonc;} Parametres ')' {insert_fonc_tab($2,jump_label,0);}
+	
+EnTeteFonct : /* A modifier */
+	INT IDENT '(' Parametres ')' {insert_fonc_tab($2,jump_label,2);}
+	| CHAR IDENT '(' Parametres ')' {insert_fonc_tab($2,jump_label,1);}
+	| VOID IDENT '(' Parametres ')' {insert_fonc_tab($2,jump_label,0);}
 	;
+	
 Parametres : 
 	VOID
 	| ListTypVar
 	;
+	
 	/* Verifier bon nombre arguments */
-ListTypVar :
-	INT IDENT {insert_symbol($2); }',' ListTypVar 
-	| CHAR IDENT {insert_symbol($2); }',' ListTypVar  
-	| INT IDENT /*{ insert_symbol($2,integer); }*/
-	| CHAR IDENT /*{ insert_symbol($2,caracter); }*/	
+	/* A modifier */
+ListTypVar : /* Pour chaque variable lu , on incremente le nombre de variable de la fonction */
+	INT IDENT { insert_type(2,tableFunc[nbFunc].listeArg,tableFunc[nbFunc].nbArg);
+				insert_symbol($2,tableFunc[nbFunc].listeArg,&tableFunc[nbFunc].nbArg);
+				; 
+			 	}
+			 ',' ListTypVar 
+			 
+	| CHAR IDENT {
+				insert_type(1,tableFunc[nbFunc].listeArg,tableFunc[nbFunc].nbArg);
+				insert_symbol($2,tableFunc[nbFunc].listeArg,&tableFunc[nbFunc].nbArg);
+				
+			    }
+			 ',' ListTypVar  
+			 
+	| INT IDENT {
+				insert_type(2,tableFunc[nbFunc].listeArg,tableFunc[nbFunc].nbArg);
+				insert_symbol($2,tableFunc[nbFunc].listeArg,&tableFunc[nbFunc].nbArg);
+				 
+				}
+	| CHAR IDENT {
+				insert_type(1,tableFunc[nbFunc].listeArg,tableFunc[nbFunc].nbArg); 
+				insert_symbol($2,tableFunc[nbFunc].listeArg,&tableFunc[nbFunc].nbArg);
+				
+				}	
 	;
 Corps : 
-	'{' DeclConst DeclVar SuiteInstr '}'
+	'{' {nbElemFonc=0;} 
+		DeclConstFonc 
+		DeclVar 
+		{
+				tableFunc[nbFunc-1].nbVar = nbElemFonc;
+				/*printf("#------Table arg de tableFunc[%d] \n",nbFunc-1);
+				printTabSymbol(tableFunc[nbFunc-1].listeArg,tableFunc[nbFunc-1].nbArg);
+				printf("#------Table var de tableFunc[%d] \n",nbFunc-1);
+				printTabSymbol(tableFunc[nbFunc-1].listVar,tableFunc[nbFunc-1].nbVar);
+				printf("#------Table var de tableFunc[%d] \n",nbFunc);
+				printTabSymbol(tableFunc[nbFunc].listVar,tableFunc[nbFunc].nbVar);*/
+		}	
+			/**/
+		 
+		SuiteInstr '}'
 	;
 
-/* Declaration des variables
-	forme : 
-	int x,z;
-	int y;
-	Pas affectation a la declaration
- */	
 DeclVar : 
-	/*vide*/
-	| DeclVar INT ListVar ';' /* Ajout dans table des symbole */ 
-	| DeclVar CHAR ListVar ';' /* Ajout dans table des symbole */
+	/*vide*/						
+	| INT ListVarFonc {insert_type_rec(2,tableFunc[nbFunc-1].listVar,nbElemFonc,&countSymbolVarFonc);} ';' DeclVar 
+	| CHAR ListVarFonc {insert_type_rec(1,tableFunc[nbFunc-1].listVar,nbElemFonc,&countSymbolVarFonc);} ';' DeclVar 
 	;
-
+/*DeclVarPuisFonct :
+	/* vide 
+	| INT ListVar {insert_type_rec(2,tableS,nbElemTable,&countSymbolVar); } ';' DeclVarPuisFonct 
+	| CHAR ListVar {insert_type_rec(1,tableS,nbElemTable,&countSymbolVar);} ';' DeclVarPuisFonct */
+	
 SuiteInstr :
 	/*vide*/
 	| Instr SuiteInstr       
@@ -257,8 +342,60 @@ SuiteInstr :
 	
 /* Faire le truc sur les variables */	
 Instr :
-	
-	LValue '=' Exp ';' { fprintf(fd_fichier,"#------- %s = %d\n",$1,$3);update_symbol ($1,$3); }
+																		
+	LValue '=' Exp ';' {	/* probleme -> comment savoir si dans une fonction ou dans global ?  */ 
+						/*  Si symbole dans liste des arguments de la fonction courante{
+								-> update argument 
+							}
+							Si non{
+								verifier si symbole dans tableVarFonction des fonctions (taille = nbElemFonc) {
+									-> update celui de la fonction
+								}
+								Sinon{
+									 -> update global 
+								}
+							}*/
+						/*printf("nbElemTable = %d\n",nbElemTable);
+						printTabSymbol(tableS,nbElemTable);	
+						printf("#-----indFuncCourrant %d nbFunc %d\n",indFuncCourrant,nbFunc);*/
+						int indice=0;
+						/* Au debut */
+						if(indFuncCourrant == -1){
+							indice = nbFunc-1;
+						}
+						else{
+							indice = indFuncCourrant;	
+						}
+						
+						printf("#----LValue %s = %d\n",$1,$3);
+						int i=find($1,tableFunc[indice].listeArg,tableFunc[indice].nbArg);
+						if(i>=0){
+							update_symbol($1,$3,tableFunc[indice].listeArg,i);
+						}
+						else{
+							i=find($1,tableFunc[indice].listVar,tableFunc[indice].nbVar);
+							if(i>=0){
+								update_symbol($1,$3,tableFunc[indice].listVar,i);							
+							}
+							else{
+								indice = nbFunc;
+								i=find($1,tableFunc[indice].listVar,tableFunc[indice].nbVar);
+								if(i>=0){
+									update_symbol($1,$3,tableFunc[indice].listVar,i);							
+								}
+								else{
+									i=find($1,tableS,nbElemTable);
+									if(i>=0){
+										update_symbol ($1,$3,tableS,i); 
+									}
+									else{
+										fprintf(fd_fichier,"#------Symbol %s doesn't exist 562\n",$1); 
+									}
+								}							
+							}						
+						}
+						/*fprintf(fd_fichier,"#-------LValue %s = %d\n",$1,$3);*/
+	}
 		
 	| IF '(' Exp ')' JUMPIF Instr %prec NOTELSE {instarg ("LABEL", $5) ; }
 
@@ -266,33 +403,45 @@ Instr :
 		
 	| WHILE  LABEL '(' Exp ')' JUMPWHILE {instarg("LABEL",$2+1);} Instr {instarg("JUMP",$2); instarg("LABEL",$6);}	
 
-	| RETURN Exp ';' { /* $$=Exp Jump */
-		instarg("SET",$2);inst("PUSH");inst("RETURN");
+	| RETURN Exp ';' {  instarg("SET",$2); printf("#-----return %d\n",$2);/* $$=Exp Jump */
+		/*;inst("PUSH"); -> set deja fait dans exp*/inst("RETURN");
 	}
-	| RETURN ';' { /* Jump */
+	| RETURN ';' {
 		inst("RETURN");
 	}
 	/* Appel d'une fonction' */
-	| IDENT '(' Arguments ')' ';' { int i=find_fonc($1);
-									if(i>=0){ 
-										instarg("CALL",i);	
-									} 
-									else { 
-										fprintf(fd_fichier,"%s doesn't exist\n",$1); 
-										exit(EXIT_FAILURE);
-									} ;
+	| IDENT {indFuncCourrant=find_fonc($1);} '(' Arguments ')' ';' 
+			{
+				if(indFuncCourrant>=0){ 
+					instarg("CALL",indFuncCourrant);	
+				} 
+				else { 
+					fprintf(fd_fichier,"Function %s doesn't exist\n",$1); 
+					exit(EXIT_FAILURE);
+				}
 	
 	}
-		/* Lis un entier tape au clavier -> creation d'un symbol dans la table */
-	| READ '(' IDENT ')' ';'  { inst("READ");inst("PUSH");
-	
+		/* Lis un entier tape au clavier -> int a; read (a) -> a = truc tapé au clavier*/
+	| READ '(' IDENT ')' ';'  {/* inst("READ");inst("PUSH"); -> recup ce qui a été stocker dans la pile
+																 update_symbol();
+	*/
 	} 
-		/* Lis un caracter tape au clavier -> creation d'un symbol dans la table */
-	| READCH '(' IDENT ')' ';' { inst("READCH");inst("PUSH");
-
+		/* Lis un caracter tape au clavier -> */
+	| READCH '(' IDENT ')' ';' { /*inst("READCH");inst("PUSH");
+	*/
 	}
 	/* recup symbole dans la table , push symbol -> pop -> write */
-	| PRINT '(' Exp {inst("POP");inst("WRITE");comment("---affichage");}')' ';' 
+	| PRINT '(' Exp {/*int i=find($3);  / Probleme -> peut pas verifier type -> Exp = int /
+						inst("POP");
+						if(table[i].type==2){
+							inst("WRITE");
+						}
+						else if(table[i].type==1){
+							inst("WRITECH");
+						} */
+						/*inst("POP");*/
+						inst("WRITE");
+						comment("---affichage");}')' ';' 
 	
 	| ';'
 	| '{' SuiteInstr '}'
@@ -318,10 +467,20 @@ TabExp:
 	| TabExp '[' Exp ']' 
 
 	;
+/* On ajoute dans le tableau des variable de fonction */
 
+/* On met a jour */
 ListExp : 
-	ListExp ',' Exp {insert_value($3);nbElemTable++;nbElemFonc++; } 
-	| Exp {insert_value($1);nbElemTable++;nbElemFonc++; }  
+	ListExp ',' Exp {
+		/*printf("#------ Liste exp indFuncCourrant = %d\n",indFuncCourrant);*/
+		
+		insert_value($3,tableFunc[indFuncCourrant].listeArg,tableFunc[indFuncCourrant].nbArg-1);} 
+	| Exp {
+		printf("#------ Liste exp indFuncCourrant = %d\n",indFuncCourrant);
+		insert_value($1,tableFunc[indFuncCourrant].listeArg,tableFunc[indFuncCourrant].nbArg-1);
+		
+		printTabSymbol(tableFunc[indFuncCourrant].listeArg,tableFunc[indFuncCourrant].nbArg);
+		} 
 	;	
 
  
@@ -427,8 +586,8 @@ Exp :
 	}
 	
 	/*Exp BOPE Exp */
-	| Exp '|' '|' Exp {ifor();$$=$4;}
-	| Exp '&' '&' Exp {ifand();$$=$4;}
+	| Exp '|' '|' Exp {ifor();$$=($4==0)?($1==0)?0:$1/$1:$4/$4;}
+	| Exp '&' '&' Exp {ifand();$$=($4==0)?0:($1==0)?0:$4/$4;}
 	
 	/* NEGATION Exp */	
     | '!' Exp { 
@@ -444,38 +603,107 @@ Exp :
 		instarg("SET",1);
 		inst("ADD");
 		inst("PUSH");
+		$$=($2==0)?$2:$2/$2;
 	}
 	| TRUE {instarg("SET",1); inst("PUSH");}
 	| FALSE {instarg("SET",0); inst("PUSH");}
 
 	| '(' Exp ')' { $$=$2; }
-	| LValue {int i=find($1);fprintf(fd_fichier,"#---$1 = %s i = %d table[%d].value = %d\n",$1,i,i,table[i].value);
-				 if(i>=0){
-				 	instarg("SET",table[i].value);
+			/* Comment savoir si dans fonction ou global ? */
+				/*  recherche dans fonction -> si pas dans fonction -> recherche global */
+	| LValue { 			int indice=0;
+						/* Au debut */
+						if(indFuncCourrant == -1){
+							indice = nbFunc-1;
+						}
+						else{
+							indice = indFuncCourrant;	
+						}
+						int i=find($1,tableFunc[indice+1].listeArg,tableFunc[indice].nbArg);
+						
+						/*printf("#---i = %d,indFuncCourrant %d, indice %d $1 = %s \n",i,indFuncCourrant,indice,$1);
+						*/
+						if(i>=0){
+							instarg("SET",tableFunc[indice].listeArg[i].value);
+							inst("PUSH");
+				 			$$=tableFunc[indice].listeArg[i].value;	
+						}
+						else{
+							
+							i=find($1,tableFunc[indice].listVar,tableFunc[indice].nbVar);
+							if(i>=0){
+								instarg("SET",tableFunc[indice].listVar[i].value);
+								inst("PUSH");
+				 				$$=tableFunc[indice].listVar[i].value;								
+							}
+							else{
+								indice = nbFunc;
+								
+								/*printf("#------indice = %d,indFuncCourrant %d\n",indice,indFuncCourrant);*/
+								i=find($1,tableFunc[indice].listVar,tableFunc[indice].nbVar);
+								if(i>=0){
+									instarg("SET",tableFunc[indice].listVar[i].value);
+									inst("PUSH");
+				 					$$=tableFunc[indice].listVar[i].value;							
+								}
+								else{
+									i=find($1,tableS,nbElemTable);
+									if(i>=0){
+										instarg("SET",tableS[i].value);
+				 						inst("PUSH");
+				 						$$=tableS[i].value; 
+									}
+									else{
+									fprintf(fd_fichier,"#------Symbol %s doesn't exist\n",$1); 
+									}
+								
+								}							
+							}				
+						}
+	
+	/*
+				int i=find($1,tableVarFonction,nbElemFonc);
+				 Si trouve pas dans fonction -> recherche dans le global /
+				if(i<0){
+					i=find($1,tableS,nbElemTable);
+					
+					fprintf(fd_fichier,"#---$1 = %s i = %d table[%d].value = %d\n",$1,i,i,tableS[i].value);
+					if(i>=0){
+						instarg("SET",tableS[i].value);
+				 		inst("PUSH");
+				 		$$=tableS[i].value;	
+					} 
+					else { 
+				 		fprintf(fd_fichier,"#---%s doesn't exist\n",$1); 
+						exit(EXIT_FAILURE);
+					}
+								
+				}
+				else{
+					instarg("SET",tableVarFonction[i].value);
 				 	inst("PUSH");
-				 } 
-				 else { 
-				 	fprintf(fd_fichier,"#---%s doesn't exist\n",$1); 
-				 	exit(EXIT_FAILURE);
-				 }
-				 $$=table[i].value;
+				 	$$=tableVarFonction[i].value;
+				}*/
+				
 	}
 	| NUM { 
 		instarg("SET",$1);
-        inst("PUSH"); 
+        inst("PUSH");
+        $$=$1;
     }
 	| CARACTERE { /* A voir */
 		instarg("SET",$1);
         inst("PUSH"); 
+        $$=$1;
 	}
-	| IDENT '(' Arguments ')' { int i=find_fonc($1);
-									if(i>=0){ 
-										instarg("CALL",i);	
+	| IDENT { indFuncCourrant=find_fonc($1);} '(' Arguments ')' {
+									if(indFuncCourrant>=0){ 
+										instarg("CALL",indFuncCourrant);	
 									} 
 									else { 
-										fprintf(fd_fichier,"%s doesn't exist\n",$1);
+										fprintf(fd_fichier,"Function %s doesn't exist\n",$1); 
 										exit(EXIT_FAILURE);
-									} ; 
+									} 
 							  } 
   ;
 
@@ -525,12 +753,12 @@ void restoration(){
 
 void ifor(){
 	inst("POP");
-    	instarg("JUMPF",jump_label_neg);
-    	inst("PUSH");
-    	inst("SWAP");
-    	inst("POP");
-    	inst("DIV");
-    	instarg("LABEL",jump_label_neg--);
+    instarg("JUMPF",jump_label_neg);
+    inst("PUSH");
+    inst("SWAP");
+    inst("POP");
+    inst("DIV");
+    instarg("LABEL",jump_label_neg--);
 	inst("NEG");
 	inst("SWAP");
 	instarg("SET",1);
@@ -541,12 +769,12 @@ void ifor(){
 
 void ifand(){
 	inst("POP");
-    	instarg("JUMPF",jump_label_neg);
-    	inst("PUSH");
-    	inst("SWAP");
-    	inst("POP");
-    	inst("DIV");
-    	instarg("LABEL",jump_label_neg--);
+   	instarg("JUMPF",jump_label_neg);
+   	inst("PUSH");
+    inst("SWAP");
+    inst("POP");
+    inst("DIV");
+    instarg("LABEL",jump_label_neg--);
 	inst("SWAP");
 	inst("POP");
 	inst("ADD");
@@ -571,74 +799,76 @@ void printTabFunc(){
 	}
 }
 
-void printTabSymbol(){
+void printTabSymbol(Symbol* table,int size){
+	/* size = nbElemTable */
 	int i;	
-	for(i=nbElemTable;i>=0;i--){
-		fprintf(stdout,"#------table[%d].name = %s type : %d\n",i,table[i].name,table[i].type);
+	for(i=size;i>=0;i--){
+		fprintf(stdout,"#------table[%d].name = %s type : %d value : %d\n",i,table[i].name,table[i].type,table[i].value);
 	}
 }
 
 
-int find(char *symbol){
+int find(char *symbol,Symbol* table,int size){
 	int i;	
-	for(i=nbElemTable;i>=0;i--){
-		/*fprintf(stdout,"#------symbol = %s,table[%d].name = %s\n",symbol,i,table[i].name);*/
+	for(i=size;i>=0;i--){
 		if(strcmp(table[i].name,symbol)==0)
 			return i;
 	}
+	/*for(i=debut;i<fin;i++){
+		if(strcmp(table[i].name,symbol)==0)
+			return i;
+	*/
 	return -1;
 }
 
-void insert_value(int value){
-	table[nbElemTable].value=value;
+
+
+
+void insert_value(int value,Symbol* table,int indice){
+	/* indice = nbElemTable */
+	table[indice].value=value;
 }
-void insert_type(Type type){
-	table[nbElemTable].type = type;
+void insert_type(Type type,Symbol* table,int indice){
+	/* indice = nbElemTable */
+	table[indice].type = type;
 }
 
 /*  */
-void insert_type_rec(Type type){	
-	while(countSymbolVar>0){
-		table[nbElemTable-countSymbolVar].type = type;
-		countSymbolVar--;
+void insert_type_rec(Type type,Symbol* table,int nbElem,int* count){
+	/* nbElem = nbElemTable 
+	*/
+	while(*count>0){
+		table[nbElem-(*count)].type = type;
+		*count-=1;
 	}
+	
 
 }
 
-void insert_symbol(char* symbol){
-	if(find(symbol)<0){
+void insert_symbol(char* symbol,Symbol* table,int *indice){
+	/* indice = nbElemTable */
+	if(find(symbol,table,*indice)<0){
 		/*table[nbElemTable].name=(char*)calloc(sizeof(char),strlen(symbol)+1);*/
-		strncpy(table[nbElemTable].name,symbol,strlen(symbol)+1);
-		nbElemTable++;
-		nbElemFonc++;
+		strncpy(table[*indice].name,symbol,strlen(symbol)+1);
+		*indice+=1;
+		
 		/*if(NULL ==(table = (Symbol*)realloc(table,nbElemTable+1))){
 			perror("realloc\n");
 			exit(EXIT_FAILURE);
 		}*/
 	}
 	else{
-		fprintf(fd_fichier,"Redeclaration of variable %s\n",symbol);	
+		fprintf(fd_fichier,"#-----Redeclaration of variable %s\n",symbol);	
 	}	
 }
 
-void update_symbol(char* symbol,int value){
-	int i=-1;
-	if(0<=(i=find(symbol))){
+void update_symbol(char* symbol,int value,Symbol* table,int ind){
+	/*if((i=find(symbol,table,size))>=0){
+		
 		table[i].value = value;
-	}
-}
-
-
-void delete_symbol_fonc(){
-	int i=-1;
-	for(i=nbElemTable-1;i>nbElemTable-nbElemFonc-1;i--){
-		/*if(NULL ==(table = (Symbol*)realloc(table,i))){
-			perror("realloc\n");
-			exit(EXIT_FAILURE);
-		}*/
-	}
-	nbElemTable-=nbElemFonc;
-	nbElemFonc=0;
+	}*/
+	table[ind].value = value;
+	
 }
 
 /* Renvoie le label de la fonction s'il trouve , -1 sinon */
@@ -673,32 +903,15 @@ void insert_fonc_tab(char* name,int label,Type type){
 
 }
 
-/*
-void init_table_symbol(){
-	 Alloc du tableau de taille 0 
-  	if(NULL ==(table = (Symbol*)malloc((nbElemTable+1)*sizeof(Symbol)))){
-		perror("malloc\n");
-		exit(EXIT_FAILURE);
- 	}
- 	
- 	
-}
-*/
-/*
-void init_table_func(){
-	if(NULL ==(tableFunc = (Func*)malloc((nbFunc+1)*sizeof(Func)))){
-		perror("malloc\n");
-		exit(EXIT_FAILURE);
- 	}
-}
-*/
 void init(){
-/*
-	init_table_symbol();
-	init_table_func();
-*/
-}
+	int i;
+	for(i=0;i<1024;i++){
+		tableFunc[i].nbArg=0;
+		tableFunc[i].nbVar=0;
+	}
 
+
+}
 
 int yyerror(char* s) {
   fprintf(stderr,"%s\n",s);
@@ -753,10 +966,7 @@ int main(int argc, char** argv) {
     fprintf(stderr,"usage: %s [src]\n",argv[0]);
     return 1;
   }
-  
-  
-	
-
+  init();
 
   yyparse();
   endProgram();

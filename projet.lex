@@ -26,7 +26,6 @@
 "false" {return FALSE;}
 "read" {return READ;}
 "readch" {return READCH;}
-
 "'"[a-zA-Z]"'" {yylval.caract = yytext[1];return CARACTERE;}
 [A-Za-z_]+ {sscanf(yytext,"%s",yylval.string);/*fprintf(stdout,"#---yylval.string = %s\n",yylval.string);*/return IDENT;}
 . return yytext[0];
